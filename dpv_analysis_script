@@ -1,0 +1,79 @@
+import pandas as pd
+
+# Caminho do arquivo CSV original e do arquivo limpo
+file_path = 'ADICIONAR_ARQUIVO.csv'
+clean_file_path = '/content/cleaned_file.csv'
+
+with open(file_path, 'r') as file:
+    lines = file.readlines()
+
+clean_lines = [line.replace('"', '') for line in lines if line.strip()]
+
+with open(clean_file_path, 'w') as file:
+    file.writelines('\n'.join(clean_lines))
+
+df = pd.read_csv(clean_file_path, delimiter=';', skiprows=1)  
+df.columns = ['Potential(V)', 'Current(uA)'] 
+
+#NOMEANDO O DADO DA CURVA DA AMOSTRA ONDE ESTÁ INDICADO 'NOMEAR AQUI'
+df_dpv_name = "NOMEAR_ARQUIVO_ORIGINAL"
+
+#SEPARAÇÃO DOS DADOS
+df_dpv = df.iloc[3:121]
+df_dpv_current = df_dpv['Current(uA)']
+df_dpv_potential = df_dpv['Potential(V)']
+df_baseline = df.iloc[123:]
+df_baseline_name = df.iloc[121, 0]
+df_baseline_current = df_baseline['Current(uA)']
+df_baseline_potential = df_baseline['Potential(V)']
+
+# Avaliação do pico DPV
+peak_DPV_current = df_dpv_current.max()
+peak_DPV_potential = df_dpv.loc[df_dpv['Current(uA)'] == peak_DPV_current, 'Potential(V)'].values[0]
+
+print(f"Resultados Curva DPV Amostra = Potencial do Pico: {peak_DPV_potential} Corrente do Pico: {peak_DPV_current}")
+
+# Avaliação do pico Baseline
+peak_baseline_current = df_baseline_current.max()
+peak_baseline_potential = df_baseline.loc[df_baseline['Current(uA)'] == peak_baseline_current, 'Potential(V)'].values[0]
+
+print(f"Resultados Curva DPV Amostra = Potencial do Pico: {peak_baseline_potential} Corrente do Pico: {peak_baseline_current}")
+
+# Dados da análise
+data_analise = datetime.now().strftime('%Y-%m-%d')  # Defina a data da análise
+
+final_results = {
+    'Atributo': [
+        'Nome da Curva DPV',
+        'Nome da Curva Baseline',
+        'Arquivo Original',
+        'Data da Analise',
+        'Pico DPV (Potencial)',
+        'Pico DPV (Corrente)',
+        'Pico Baseline (Potencial)',
+        'Pico Baseline (Corrente)'
+    ],
+    'Resultado': [
+        df_dpv_name,
+        df_baseline_name,
+        file_path.split('/')[-1].replace(',', '_'),  # Substituir vírgulas por sublinhados
+        data_analise,
+        peak_DPV_potential.replace(',', '.'),
+        peak_DPV_current.replace(',', '.'),
+        peak_baseline_potential.replace(',', '.'),
+        peak_baseline_current.replace(',', '.')
+    ]
+}
+
+df_final_results = pd.DataFrame(final_results)
+
+print("Conteúdo do DataFrame:")
+print(df_final_results)
+
+# Nome do arquivo de resultados
+final_results_file_name = f"{file_path.split('/')[-1].split('.')[0]}_{data_analise}_resultado.csv"
+
+# DataFrame em um arquivo CSV
+df_final_results.to_csv(f'/content/{final_results_file_name}', sep=';', index=False)
+
+print(f"Resultados salvos no arquivo '{final_results_file_name}'")    
