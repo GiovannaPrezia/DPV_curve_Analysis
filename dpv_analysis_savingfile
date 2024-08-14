@@ -1,0 +1,106 @@
+import pandas as pd
+import os
+from datetime import datetime
+
+# Caminho da pasta onde estão os arquivos CSV
+folder_path = 'CAMINHO DO ARQUIVO'
+
+# Caminho da pasta para salvar os resultados
+results_folder_path = 'CAMINHO DO RESULTADO DA ANALISE'
+
+# Certifique-se de que a pasta de resultados existe
+os.makedirs(results_folder_path, exist_ok=True)
+
+# Função para processar cada arquivo CSV
+def process_csv(file_path):
+    # Extrair o ID e o sufixo do arquivo
+    file_name = file_path.split('/')[-1]
+    df_dpv_name, sufixo = file_name.split('_')[1], file_name.split('_')[2].split('.')[0]
+
+    # Determinar a pasta de destino com base no sufixo
+    sufixo_folder = os.path.join(results_folder_path, sufixo)
+    os.makedirs(sufixo_folder, exist_ok=True)
+
+    clean_file_path = '/content/cleaned_file.csv'
+
+    # Ler e limpar o arquivo CSV, removendo aspas e linhas vazias
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+
+    clean_lines = [line;replace('"', '') for line in lines if line.strip()]
+
+    with open(clean_file_path, 'w') as file:
+        file.writelines('\n'.join(clean_lines))
+
+    # Ler o arquivo CSV limpo, ignorando a primeira linha (cabeçalho original)
+    df = pd.read_csv(clean_file_path, delimiter=';', skiprows=1)
+    df.columns = ['Potential(V)', 'Current(uA)']
+
+    # SEPARAÇÃO DOS DADOS
+    df_dpv = df.iloc[3:121]
+    df_baseline = df.iloc[123:]
+    df_baseline_name = df.iloc[121, 0]
+
+    # Garantir que as colunas 'Current(uA)' e 'Potential(V)' sejam numéricas
+    df_baseline.loc[:, 'Current(uA)'] = pd.to_numeric(df_baseline['Current(uA)'].str.replace(',', '.'), errors='coerce')
+    df_baseline.loc[:, 'Potential(V)'] = pd.to_numeric(df_baseline['Potential(V)'].str.replace(',', '.'), errors='coerce')
+
+    # Remover linhas com valores inválidos (NaN)
+    df_baseline = df_baseline.dropna()
+
+    # Avaliação do pico DPV
+    peak_DPV_current = df_dpv['Current(uA)'].max()
+    peak_DPV_potential = df_dpv.loc[df_dpv['Current(uA)'] == peak_DPV_current, 'Potential(V)'].values[0]
+
+    print(f"Resultados Curva DPV Amostra {df_dpv_name} = Potencial do Pico: {peak_DPV_potential} Corrente do Pico: {peak_DPV_current}")
+
+    # Avaliação do pico Baseline - correção para encontrar o menor valor (mais negativo)
+    peak_baseline_current = df_baseline['Current(uA)'].min()
+    peak_baseline_potential = df_baseline.loc[df_baseline['Current(uA)'] == peak_baseline_current, 'Potential(V)'].values[0]
+
+    print(f"Resultados Curva Baseline {df_dpv_name} = Potencial do Pico: {peak_baseline_potential} Corrente do Pico: {peak_baseline_current}")
+
+    # Dados da análise
+    data_analise = datetime.now().strftime('%Y-%m-%d')  # Defina a data da análise
+
+    final_results = {
+        'Atributo': [
+            'Nome da Curva DPV',
+            'Nome da Curva Baseline',
+            'Arquivo Original',
+            'Data da Analise',
+            'Pico DPV (Potencial)',
+            'Pico DPV (Corrente)',
+            'Pico Baseline (Potencial)',
+            'Pico Baseline (Corrente)'
+        ],
+        'Resultado': [
+            df_dpv_name,
+            df_baseline_name,
+            file_name.replace(',', '_'),  # Substituir vírgulas por sublinhados
+            data_analise,
+            str(peak_DPV_potential).replace(',', '.'),
+            str(peak_DPV_current).replace(',', '.'),
+            str(peak_baseline_potential).replace(',', '.'),
+            str(peak_baseline_current).replace(',', '.')
+        ]
+    }
+
+    df_final_results = pd.DataFrame(final_results)
+
+    print("Conteúdo do DataFrame:")
+    print(df_final_results)
+
+    # Nome do arquivo de resultados
+    final_results_file_name = f"{df_dpv_name}_{data_analise}_resultado.csv"
+
+    # Salvar o DataFrame em um arquivo CSV na pasta específica para o sufixo
+    df_final_results.to_csv(os.path.join(sufixo_folder, final_results_file_name), sep=';', index=False)
+
+    print(f"Resultados salvos no arquivo '{final_results_file_name}' na pasta '{sufixo_folder}'")
+
+# Processar todos os arquivos CSV na pasta
+for filename in os.listdir(folder_path):
+    if filename.endswith(".csv"):
+        file_path = os.path.join(folder_path, filename)
+        process_csv(file_path)
